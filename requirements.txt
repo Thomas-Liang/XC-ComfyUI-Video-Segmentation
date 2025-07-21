@@ -1,0 +1,36 @@
+# ComfyUI Video Segmentation Node - Requirements
+# Based on TransNetV2 inference requirements
+
+# Core Dependencies for ComfyUI
+torch>=1.9.0
+torchvision>=0.10.0
+numpy>=1.19.0
+pillow>=8.0.0
+
+# TransNetV2 Dependencies
+# Primary ML framework - TensorFlow 2.x for TransNetV2
+tensorflow>=2.1.0,<3.0.0
+
+# Video Processing Dependencies
+opencv-python>=4.5.0
+ffmpeg-python>=0.2.0
+
+# Optional but recommended for better performance
+scikit-learn>=0.24.0
+matplotlib>=3.3.0
+
+# Additional utilities that may be needed
+tqdm>=4.60.0
+requests>=2.25.0
+
+# For fallback scene detection
+scipy>=1.6.0
+
+# Note: Make sure you have ffmpeg installed on your system
+# Windows: Download from https://ffmpeg.org/download.html
+# Linux: sudo apt-get install ffmpeg
+# macOS: brew install ffmpeg
+
+# TransNetV2 Model Weights
+# The model weights need to be downloaded separately from:
+# https://github.com/soCzech/TransNetV2/tree/master/inference/transnetv2-weights
