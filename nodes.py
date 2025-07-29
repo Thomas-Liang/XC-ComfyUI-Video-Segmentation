@@ -1,49 +1,150 @@
 import os
-import sys
-import subprocess
+import uuid
+import folder_paths
+import numpy as np
 import logging
-import tempfile
-import shutil
 from typing import List, Tuple
+from pathlib import Path
 
 import torch
-import numpy as np
 from PIL import Image
-import folder_paths
 
 # Set up logging
 logger = logging.getLogger(__name__)
 
-class VideoSegmentation:
-    """
-    A ComfyUI node for video scene segmentation using TransNetV2.
-    
-    This node takes a video input and segments it into scenes using the 
-    TransNetV2 project (https://github.com/soCzech/TransNetV2).
-    """
-    
-    def __init__(self):
-        pass
+# Try to import VIDEO input type from ComfyUI API
+try:
+    from comfy_api.input import VideoInput
+except ImportError:
+    VideoInput = None
+    logger.warning("ComfyUI API not available, using fallback video handling")
 
+# Model directory setup - same as Qwen2.5-VL
+model_directory = os.path.join(folder_paths.models_dir, "VLM")
+os.makedirs(model_directory, exist_ok=True)
+
+
+class DownloadAndLoadTransNetModel:
+    """
+    A ComfyUI node for downloading and loading TransNetV2 models.
+    Following the Qwen2.5-VL structure for consistency.
+    """
+    
     @classmethod
     def INPUT_TYPES(cls):
-        """
-        Define the input types for the Video Segmentation node.
-        
-        Returns:
-            dict: Configuration for input fields
-        """
         return {
             "required": {
-                "video": ("STRING", {
-                    "multiline": False,
-                    "default": "",
-                    "placeholder": "Path to input video file"
-                }),
-                "output_dir": ("STRING", {
-                    "multiline": False, 
-                    "default": "",
-                    "placeholder": "Directory to save segmented videos"
+                "model": (
+                    [
+                        "transnetv2-weights",
+                        "transnetv2-pytorch-weights",
+                    ],
+                    {"default": "transnetv2-weights"},
+                ),
+                "device": (
+                    ["auto", "cpu", "cuda"],
+                    {"default": "auto"},
+                ),
+            },
+        }
+
+    RETURN_TYPES = ("TRANSNET_MODEL",)
+    RETURN_NAMES = ("TransNet_model",)
+    FUNCTION = "DownloadAndLoadTransNetModel"
+    CATEGORY = "TransNet"
+
+    def DownloadAndLoadTransNetModel(self, model, device):
+        TransNet_model = {"model": "", "model_path": ""}
+        model_name = model
+        model_path = os.path.join(model_directory, model_name)
+
+        if not os.path.exists(model_path):
+            print(f"Downloading TransNetV2 model to: {model_path}")
+            self._download_model(model_name, model_path)
+
+        # Load TransNetV2 model
+        try:
+            import transnetv2_pytorch as transnetv2
+            
+            # Initialize the model
+            if device == "auto":
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+            
+            # Path to pre-converted PyTorch weights
+            pytorch_weights_path = os.path.join(model_path, "transnetv2-pytorch-weights.pth")
+            
+            # Load the model with pre-converted PyTorch weights
+            model_instance = transnetv2.TransNetV2()
+            
+            # Load the converted weights
+            if os.path.exists(pytorch_weights_path):
+                model_instance.load_state_dict(torch.load(pytorch_weights_path, map_location=device))
+                logger.info(f"Loaded pre-converted PyTorch weights from {pytorch_weights_path}")
+            else:
+                logger.error(f"Pre-converted PyTorch weights not found at {pytorch_weights_path}")
+                logger.error("Please run the weight conversion script first")
+                raise FileNotFoundError(f"PyTorch weights not found: {pytorch_weights_path}")
+            
+            # Move model to device
+            model_instance = model_instance.to(device)
+            model_instance.eval()
+            
+            TransNet_model["model"] = model_instance
+            TransNet_model["model_path"] = model_path
+            TransNet_model["device"] = device
+            
+            logger.info(f"TransNetV2 model loaded successfully from {model_path}")
+            
+        except ImportError:
+            logger.error("TransNetV2 package not found. Please install: pip install transnetv2-pytorch")
+            raise ImportError("TransNetV2 package not installed")
+        except Exception as e:
+            logger.error(f"Error loading TransNetV2 model: {str(e)}")
+            raise
+
+        return (TransNet_model,)
+
+    def _download_model(self, model_name, model_path):
+        """
+        Create model directory structure. PyTorch weights should be pre-converted.
+        """
+        try:
+            os.makedirs(model_path, exist_ok=True)
+            
+            # Create a marker file to indicate model directory is ready
+            marker_file = os.path.join(model_path, "model_ready.txt")
+            with open(marker_file, "w") as f:
+                f.write(f"TransNetV2 model directory {model_name} ready\n")
+                f.write("Note: PyTorch weights should be pre-converted and placed here\n")
+                f.write("Expected file: transnetv2-pytorch-weights.pth\n")
+            
+            logger.info(f"TransNetV2 model directory created at {model_path}")
+            
+        except Exception as e:
+            logger.error(f"Error preparing model directory: {str(e)}")
+            raise
+
+
+class TransNetV2_Run:
+    """
+    A ComfyUI node for video scene segmentation using TransNetV2.
+    Following the Qwen2.5-VL structure with optional video input.
+    """
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "optional": {
+                "video": ("VIDEO",),
+            },
+            "required": {
+                "TransNet_model": ("TRANSNET_MODEL",),
+                "threshold": ("FLOAT", {
+                    "default": 0.5,
+                    "min": 0.1,
+                    "max": 1.0,
+                    "step": 0.01,
+                    "display": "number"
                 }),
                 "min_scene_length": ("INT", {
                     "default": 30,
@@ -52,371 +153,305 @@ class VideoSegmentation:
                     "step": 1,
                     "display": "number"
                 }),
-                "threshold": ("FLOAT", {
-                    "default": 0.5,
-                    "min": 0.1,
-                    "max": 1.0,
-                    "step": 0.1,
-                    "display": "number"
-                })
+                "output_dir": ("STRING", {
+                    "default": "",
+                    "multiline": False,
+                    "placeholder": "Leave empty for default temp directory"
+                }),
+                "seed": ("INT", {"default": 1, "min": 1, "max": 0xFFFFFFFFFFFFFFFF}),
             },
         }
 
-    RETURN_TYPES = ("STRING", "INT", "LIST")
-    RETURN_NAMES = ("output_directory", "num_segments", "segment_paths")
-    
-    FUNCTION = "segment_video"
-    
-    OUTPUT_NODE = True
-    
-    CATEGORY = "Video/Segmentation"
+    RETURN_TYPES = ("LIST",)
+    RETURN_NAMES = ("segment_paths",)
+    FUNCTION = "TransNetV2_Run"
+    CATEGORY = "TransNet"
 
-    def segment_video(self, video, output_dir, min_scene_length, threshold):
-        """
-        Segment the input video into scenes using TransNetV2.
+    def TransNetV2_Run(
+        self,
+        TransNet_model,
+        threshold,
+        min_scene_length,
+        output_dir,
+        seed,
+        video=None,
+    ):
+        if video is None:
+            logger.error("No video input provided")
+            return ([],)
         
-        Args:
-            video (str): Path to the input video file
-            output_dir (str): Directory to save segmented videos
-            min_scene_length (int): Minimum scene length in frames
-            threshold (float): Scene detection threshold
-            
-        Returns:
-            Tuple: (output_directory, num_segments, segment_paths)
-        """
+        # Handle video input - convert to temporary file if needed
+        video_path = self._handle_video_input(video, seed)
+        if not video_path:
+            logger.error("Failed to process video input")
+            return ([],)
+        
+        # Set up output directory
+        if not output_dir:
+            output_dir = os.path.join(folder_paths.temp_directory, f"transnet_segments_{seed}")
+        
+        os.makedirs(output_dir, exist_ok=True)
+        
         try:
-            # Validate input video path
-            if not video or not os.path.isfile(video):
-                logger.error(f"Video file not found: {video}")
-                return ("", 0, [])
-            
-            # Create output directory if it doesn't exist
-            if not output_dir:
-                output_dir = os.path.join(folder_paths.get_output_directory(), "video_segments")
-            
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # Convert to absolute paths
-            video_path = os.path.abspath(video)
-            output_path = os.path.abspath(output_dir)
-            
-            logger.info(f"Starting video segmentation for: {video_path}")
-            logger.info(f"Output directory: {output_path}")
-            
-            # Run TransNetV2 segmentation
-            success = self._run_transnetv2(video_path, output_path, min_scene_length, threshold)
-            
-            if not success:
-                logger.error("TransNetV2 segmentation failed")
-                return (output_path, 0, [])
-            
-            # Get list of generated segment files
-            segment_paths = self._get_segment_files(output_path)
-            num_segments = len(segment_paths)
-            
-            logger.info(f"Successfully created {num_segments} video segments")
-            
-            return (output_path, num_segments, segment_paths)
-            
-        except Exception as e:
-            logger.error(f"Error in video segmentation: {str(e)}")
-            return ("", 0, [])
-
-    def _run_transnetv2(self, video_path: str, output_dir: str, min_scene_length: int, threshold: float) -> bool:
-        """
-        Run TransNetV2 scene segmentation on the video.
-        
-        This method is adapted from the run_transnetv2 function in task_utils.py
-        
-        Args:
-            video_path (str): Path to the video file
-            output_dir (str): Directory to save segmented videos
-            min_scene_length (int): Minimum scene length in frames
-            threshold (float): Scene detection threshold
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            logger.info(f"Running TransNetV2 scene segmentation on {video_path}")
-            
-            # Check if video file exists
-            if not os.path.isfile(video_path):
-                logger.error(f"Video file not found: {video_path}")
-                return False
-            
-            # Create output directory
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # Get Python executable
-            python_executable = sys.executable
-            
-            # Try to find TransNetV2 script or installation
-            transnetv2_script = None
-            transnetv2_installed = False
-            
-            # First, check if TransNetV2 is installed as a Python package
-            try:
-                import transnetv2
-                transnetv2_installed = True
-                logger.info("Found TransNetV2 Python package")
-            except ImportError:
-                logger.info("TransNetV2 Python package not found, looking for local installation")
-            
-            # Look for transnetv2 in common locations
-            possible_locations = [
-                # Try relative to the project root from task_utils.py pattern  
-                os.path.join(os.path.dirname(os.path.dirname(__file__)), "transnetv2", "main.py"),
-                # Try in current directory
-                os.path.join(os.path.dirname(__file__), "transnetv2", "main.py"),
-                # Try in node directory
-                os.path.join(os.path.dirname(__file__), "transnetv2-weights", "inference.py"),
-            ]
-            
-            for location in possible_locations:
-                if os.path.isfile(location):
-                    transnetv2_script = location
-                    logger.info(f"Found TransNetV2 script at: {location}")
-                    break
-            
-            # Construct the command based on what we found
-            cmd = None
-            
-            if transnetv2_installed:
-                # Use the installed Python package
-                cmd = [
-                    python_executable, "-m", "transnetv2.inference",
-                    "--video-path", video_path,
-                    "--output-dir", output_dir,
-                    "--threshold", str(threshold)
-                ]
-            elif transnetv2_script:
-                # Use local script
-                cmd = [
-                    python_executable,
-                    transnetv2_script,
-                    "--video_path", video_path,
-                    "--output_path", output_dir,
-                    "--threshold", str(threshold)
-                ]
-            else:
-                # No TransNetV2 found, skip to fallback
-                logger.warning("TransNetV2 not found, using fallback scene detection")
-                return self._fallback_scene_detection(video_path, output_dir, min_scene_length)
-            
-            logger.info(f"Executing command: {' '.join(cmd)}")
-            
-            # Execute the command
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding='utf-8',
-                errors='replace'
+            # Run TransNetV2 segmentation directly
+            segment_paths = self._run_transnetv2_direct(
+                TransNet_model,
+                video_path,
+                output_dir,
+                threshold,
+                min_scene_length
             )
             
-            stdout, stderr = process.communicate()
-            
-            if process.returncode != 0:
-                logger.error(f"TransNetV2 failed with return code {process.returncode}")
-                logger.error(f"Error output: {stderr}")
-                logger.error(f"Standard output: {stdout}")
-                
-                # Try alternative approach using OpenCV-based scene detection as fallback
-                logger.info("Falling back to OpenCV-based scene detection")
-                return self._fallback_scene_detection(video_path, output_dir, min_scene_length)
-            
-            logger.info(f"TransNetV2 completed successfully for {video_path}")
-            logger.info(f"Output: {stdout}")
-            
-            return True
+            logger.info(f"Successfully created {len(segment_paths)} video segments")
+            return (segment_paths,)
             
         except Exception as e:
-            logger.error(f"Error running TransNetV2: {str(e)}")
-            # Try fallback method
-            return self._fallback_scene_detection(video_path, output_dir, min_scene_length)
-
-    def _fallback_scene_detection(self, video_path: str, output_dir: str, min_scene_length: int) -> bool:
+            logger.error(f"Error in TransNetV2 segmentation: {str(e)}")
+            return ([],)
+    
+    def _handle_video_input(self, video, seed):
         """
-        Fallback scene detection using OpenCV when TransNetV2 is not available.
-        
-        Args:
-            video_path (str): Path to input video
-            output_dir (str): Output directory for segments
-            min_scene_length (int): Minimum scene length in frames
-            
-        Returns:
-            bool: True if successful, False otherwise
+        Handle VIDEO input type and convert to file path.
+        Based on Qwen2.5-VL temp_video function.
         """
         try:
+            if VideoInput and isinstance(video, VideoInput):
+                unique_id = uuid.uuid4().hex
+                video_path = (
+                    Path(folder_paths.temp_directory) / f"temp_video_{seed}_{unique_id}.mp4"
+                )
+                video_path.parent.mkdir(parents=True, exist_ok=True)
+                video.save_to(
+                    str(video_path),
+                    format="mp4",
+                    codec="h264",
+                )
+                
+                logger.info(f"Video saved to temporary path: {video_path}")
+                return str(video_path)
+            
+            elif isinstance(video, str):
+                if os.path.isfile(video):
+                    return video
+                else:
+                    logger.error(f"Video file not found: {video}")
+                    return None
+            
+            else:
+                logger.warning(f"Unsupported video input type: {type(video)}")
+                return None
+                    
+        except Exception as e:
+            logger.error(f"Error handling video input: {str(e)}")
+            return None
+
+    def _run_transnetv2_direct(self, TransNet_model, video_path, output_dir, threshold, min_scene_length):
+        """
+        Run TransNetV2 segmentation directly using the loaded model.
+        """
+        try:
+            import transnetv2_pytorch as transnetv2
             import cv2
             
-            logger.info("Using OpenCV-based fallback scene detection")
+            model = TransNet_model["model"]
             
+            # Load video
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
-                logger.error(f"Could not open video: {video_path}")
-                return False
+                raise RuntimeError(f"Cannot open video file: {video_path}")
             
             # Get video properties
             fps = cap.get(cv2.CAP_PROP_FPS)
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             
-            # Simple scene detection based on frame differences
-            scene_boundaries = self._detect_scenes_opencv(cap, min_scene_length)
+            logger.info(f"Video properties: {total_frames} frames, {fps} fps, {width}x{height}")
+            
+            # Read all frames
+            frames = []
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                # Convert BGR to RGB
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                frames.append(frame_rgb)
+            
             cap.release()
             
+            if not frames:
+                raise RuntimeError("No frames could be read from video")
+            
+            # Convert to numpy array
+            frames_array = np.array(frames)
+            
+            # Run TransNetV2 prediction
+            logger.info("Running TransNetV2 scene detection...")
+            
+            # Convert frames to tensor format - TransNetV2 expects uint8 [B, T, H, W, 3]
+            # According to source: assert inputs.dtype == torch.uint8 and shape[2:] == [27, 48, 3]
+            import torch.nn.functional as F
+            from PIL import Image
+            
+            resized_frames = []
+            for frame in frames_array:
+                # Use PIL for resizing to maintain uint8 format
+                pil_image = Image.fromarray(frame.astype(np.uint8))
+                # Resize to 48x27 (width x height for PIL)
+                resized_pil = pil_image.resize((48, 27), Image.BILINEAR)
+                # Convert back to numpy array (uint8, HWC format)
+                resized_frame = np.array(resized_pil, dtype=np.uint8)
+                resized_frames.append(resized_frame)
+            
+            # Stack frames: (T, H, W, C) then add batch dim: (1, T, H, W, C)
+            frames_array_resized = np.stack(resized_frames, axis=0)
+            frames_array_batch = frames_array_resized[np.newaxis, ...]  # Add batch dimension
+            
+            # Convert to uint8 tensor (TransNetV2 requirement)
+            frames_tensor = torch.from_numpy(frames_array_batch).to(dtype=torch.uint8)
+            
+            # Move to device
+            frames_tensor = frames_tensor.to(TransNet_model["device"])
+            
+            logger.info(f"Input tensor shape: {frames_tensor.shape} (dtype: {frames_tensor.dtype})")
+            
+            # Run inference
+            with torch.no_grad():
+                predictions = model(frames_tensor)
+                
+                # Handle TransNetV2 output format
+                if isinstance(predictions, tuple):
+                    # Model returns (one_hot, {"many_hot": many_hot_predictions})
+                    one_hot_predictions, many_hot_dict = predictions
+                    logger.info(f"One-hot predictions shape: {one_hot_predictions.shape}")
+                    logger.info(f"Many-hot predictions available: {list(many_hot_dict.keys())}")
+                    single_frame_predictions = one_hot_predictions
+                else:
+                    # Model returns only one_hot predictions
+                    logger.info(f"Predictions shape: {predictions.shape}")
+                    single_frame_predictions = predictions
+                
+            # Convert predictions to numpy
+            single_frame_predictions = single_frame_predictions.cpu().numpy().squeeze()
+            all_frame_predictions = single_frame_predictions  # For compatibility
+            
+            # Find scene boundaries
+            scenes = self._find_scenes(single_frame_predictions, threshold, min_scene_length)
+            
             # Create video segments
-            return self._create_segments(video_path, scene_boundaries, output_dir, fps)
+            segment_paths = self._create_video_segments(
+                video_path, scenes, output_dir, fps
+            )
             
-        except ImportError:
-            logger.error("OpenCV not available for fallback scene detection")
-            return False
+            return segment_paths
+            
         except Exception as e:
-            logger.error(f"Error in fallback scene detection: {str(e)}")
-            return False
+            logger.error(f"Error running TransNetV2 directly: {str(e)}")
+            raise
 
-    def _detect_scenes_opencv(self, cap, min_scene_length: int, threshold: float = 0.3) -> List[Tuple[int, int]]:
+    def _find_scenes(self, predictions, threshold, min_scene_length):
         """
-        Detect scene boundaries using OpenCV frame difference analysis.
-        
-        Args:
-            cap: OpenCV VideoCapture object
-            min_scene_length (int): Minimum scene length in frames
-            threshold (float): Threshold for scene change detection
-            
-        Returns:
-            List[Tuple[int, int]]: List of (start_frame, end_frame) tuples
+        Find scene boundaries from TransNetV2 predictions.
         """
-        import cv2
+        # Find frames where transition probability exceeds threshold
+        transitions = np.where(predictions > threshold)[0]
         
-        prev_frame = None
-        frame_diffs = []
-        frame_index = 0
+        if len(transitions) == 0:
+            return [(0, len(predictions))]
         
-        # Calculate frame differences
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            
-            if prev_frame is not None:
-                # Calculate absolute difference
-                diff = cv2.absdiff(gray, prev_frame)
-                diff_sum = np.sum(diff)
-                diff_norm = diff_sum / (diff.shape[0] * diff.shape[1] * 255)
-                frame_diffs.append(diff_norm)
-            
-            prev_frame = gray
-            frame_index += 1
-        
-        if not frame_diffs:
-            return [(0, frame_index - 1)]
-        
-        # Find scene boundaries
-        mean_diff = np.mean(frame_diffs)
-        std_diff = np.std(frame_diffs)
-        scene_threshold = mean_diff + 2 * std_diff
-        
-        boundaries = []
-        for i, diff in enumerate(frame_diffs):
-            if diff > scene_threshold:
-                boundaries.append(i + 1)
-        
-        # Convert to scenes
+        # Group transitions and ensure minimum scene length
         scenes = []
-        if not boundaries:
-            scenes.append((0, frame_index - 1))
-        else:
-            scenes.append((0, boundaries[0]))
-            for i in range(len(boundaries) - 1):
-                scenes.append((boundaries[i], boundaries[i + 1]))
-            scenes.append((boundaries[-1], frame_index - 1))
+        start_frame = 0
         
-        # Filter short scenes
-        scenes = [(start, end) for start, end in scenes if end - start >= min_scene_length]
+        for transition in transitions:
+            if transition - start_frame >= min_scene_length:
+                scenes.append((start_frame, transition))
+                start_frame = transition
+        
+        # Add final scene
+        if start_frame < len(predictions):
+            scenes.append((start_frame, len(predictions)))
         
         return scenes
 
-    def _create_segments(self, video_path: str, scenes: List[Tuple[int, int]], output_dir: str, fps: float) -> bool:
+    def _create_video_segments(self, video_path, scenes, output_dir, fps):
         """
-        Create video segments using ffmpeg.
+        Create video segments based on scene boundaries.
+        """
+        import cv2
         
-        Args:
-            video_path (str): Input video path
-            scenes (List[Tuple[int, int]]): Scene boundaries
-            output_dir (str): Output directory
-            fps (float): Video frame rate
-            
-        Returns:
-            bool: True if successful
-        """
+        segment_paths = []
+        
+        # Open original video
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise RuntimeError(f"Cannot open video file: {video_path}")
+        
+        # Get video properties
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        
         try:
             for i, (start_frame, end_frame) in enumerate(scenes):
-                start_time = start_frame / fps
-                duration = (end_frame - start_frame) / fps
+                # Create output filename
+                segment_filename = f"segment_{i+1:03d}.mp4"
+                segment_path = os.path.join(output_dir, segment_filename)
                 
-                output_file = os.path.join(output_dir, f"segment_{i:03d}.mp4")
+                # Create video writer for this segment
+                out = cv2.VideoWriter(segment_path, fourcc, fps, (width, height))
                 
-                # Use ffmpeg to extract segment
-                cmd = [
-                    "ffmpeg", "-y",
-                    "-i", video_path,
-                    "-ss", str(start_time),
-                    "-t", str(duration),
-                    "-c", "copy",
-                    output_file
-                ]
+                # Seek to start frame
+                cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
                 
-                result = subprocess.run(cmd, capture_output=True, text=True)
-                if result.returncode != 0:
-                    logger.warning(f"Failed to create segment {i}: {result.stderr}")
-                    continue
+                # Write frames for this segment
+                for frame_idx in range(start_frame, end_frame):
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    out.write(frame)
                 
-                logger.info(f"Created segment {i}: {output_file}")
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error creating segments: {str(e)}")
-            return False
+                out.release()
+                
+                # Get absolute path
+                abs_segment_path = os.path.abspath(segment_path)
+                segment_paths.append(abs_segment_path)
+                
+                logger.info(f"Created segment {i+1}: {abs_segment_path} (frames {start_frame}-{end_frame})")
+        
+        finally:
+            cap.release()
+        
+        return segment_paths
 
-    def _get_segment_files(self, output_dir: str) -> List[str]:
-        """
-        Get list of generated segment files.
-        
-        Args:
-            output_dir (str): Output directory
-            
-        Returns:
-            List[str]: List of segment file paths
-        """
-        segment_files = []
-        
-        if not os.path.exists(output_dir):
-            return segment_files
-        
-        # Look for video files in the output directory
-        video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.webm']
-        
-        for filename in os.listdir(output_dir):
-            if any(filename.lower().endswith(ext) for ext in video_extensions):
-                segment_files.append(os.path.join(output_dir, filename))
-        
-        # Sort files naturally
-        segment_files.sort()
-        
-        return segment_files
+
+# Helper function similar to Qwen2.5-VL
+def temp_video(video: VideoInput, seed):
+    """
+    Create temporary video file from VideoInput.
+    """
+    unique_id = uuid.uuid4().hex
+    video_path = (
+        Path(folder_paths.temp_directory) / f"temp_video_{seed}_{unique_id}.mp4"
+    )
+    video_path.parent.mkdir(parents=True, exist_ok=True)
+    video.save_to(
+        str(video_path),
+        format="mp4",
+        codec="h264",
+    )
+
+    return str(video_path)
 
 
 # Node mappings for ComfyUI
 NODE_CLASS_MAPPINGS = {
-    "VideoSegmentation": VideoSegmentation
+    "DownloadAndLoadTransNetModel": DownloadAndLoadTransNetModel,
+    "TransNetV2_Run": TransNetV2_Run
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "VideoSegmentation": "Video Segmentation"
+    "DownloadAndLoadTransNetModel": "Download and Load TransNet Model",
+    "TransNetV2_Run": "TransNetV2 Run"
 }

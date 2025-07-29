@@ -1,0 +1,241 @@
+{
+  "id": "cd63db57-98b6-43ff-8520-eaa59e21cde9",
+  "revision": 0,
+  "last_node_id": 7,
+  "last_link_id": 5,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "TransNetV2_Run",
+      "pos": [
+        3151.699462890625,
+        3143.900390625
+      ],
+      "size": [
+        275.314453125,
+        174
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "TransNet_model",
+          "type": "TRANSNET_MODEL",
+          "link": 1
+        },
+        {
+          "name": "video",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "segment_paths",
+          "type": "LIST",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "miaoshouai/ComfyUI-Video-Segmentation",
+        "ver": "89db43013f0cc9b8a3ce2f0b6fd04c2a84690e1a",
+        "Node name for S&R": "TransNetV2_Run",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        0.5,
+        30,
+        "C:\\Users\\Admin\\Downloads\\segment",
+        1038349077222303,
+        "randomize"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "DownloadAndLoadTransNetModel",
+      "pos": [
+        2627.284912109375,
+        3235.465087890625
+      ],
+      "size": [
+        327.4068298339844,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "TransNet_model",
+          "type": "TRANSNET_MODEL",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "miaoshouai/ComfyUI-Video-Segmentation",
+        "ver": "89db43013f0cc9b8a3ce2f0b6fd04c2a84690e1a",
+        "Node name for S&R": "DownloadAndLoadTransNetModel",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "transnetv2-pytorch-weights",
+        "auto"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "easy showAnything",
+      "pos": [
+        3580.98193359375,
+        3293.733154296875
+      ],
+      "size": [
+        652.5233154296875,
+        1654
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.0",
+        "Node name for S&R": "easy showAnything",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_001.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_002.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_003.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_004.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_005.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_006.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_007.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_008.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_009.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_010.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_011.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_012.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_013.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_014.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_015.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_016.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_017.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_018.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_019.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_020.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_021.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_022.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_023.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_024.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_025.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_026.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_027.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_028.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_029.mp4",
+        "C:\\Users\\Admin\\Downloads\\segment\\segment_030.mp4"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "LoadVideo",
+      "pos": [
+        2622.52880859375,
+        3412.6484375
+      ],
+      "size": [
+        274.080078125,
+        561.2534790039062
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.44",
+        "Node name for S&R": "LoadVideo",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        "Twilight - Made with Clipchamp.mp4",
+        "image"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      1,
+      0,
+      "TRANSNET_MODEL"
+    ],
+    [
+      4,
+      1,
+      0,
+      6,
+      0,
+      "*"
+    ],
+    [
+      5,
+      7,
+      0,
+      1,
+      1,
+      "VIDEO"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "ds": {
+      "scale": 0.6727499949325761,
+      "offset": [
+        -2347.2164588083915,
+        -2899.9963245682598
+      ]
+    },
+    "frontendVersion": "1.23.4",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
