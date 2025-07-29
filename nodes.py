@@ -3,6 +3,7 @@ import uuid
 import folder_paths
 import numpy as np
 import logging
+import subprocess
 from typing import List, Tuple
 from pathlib import Path
 
@@ -377,21 +378,11 @@ class TransNetV2_Run:
 
     def _create_video_segments(self, video_path, scenes, output_dir, fps):
         """
-        Create video segments based on scene boundaries.
+        Create video segments based on scene boundaries using ffmpeg subprocess to preserve audio.
         """
-        import cv2
+        import subprocess
         
         segment_paths = []
-        
-        # Open original video
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            raise RuntimeError(f"Cannot open video file: {video_path}")
-        
-        # Get video properties
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         
         try:
             for i, (start_frame, end_frame) in enumerate(scenes):
@@ -399,29 +390,56 @@ class TransNetV2_Run:
                 segment_filename = f"segment_{i+1:03d}.mp4"
                 segment_path = os.path.join(output_dir, segment_filename)
                 
-                # Create video writer for this segment
-                out = cv2.VideoWriter(segment_path, fourcc, fps, (width, height))
+                # Calculate time-based start and duration
+                start_time = start_frame / fps
+                duration = (end_frame - start_frame) / fps
                 
-                # Seek to start frame
-                cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+                logger.info(f"Creating segment {i+1}: frames {start_frame}-{end_frame}, time {start_time:.2f}s-{start_time+duration:.2f}s")
                 
-                # Write frames for this segment
-                for frame_idx in range(start_frame, end_frame):
-                    ret, frame = cap.read()
-                    if not ret:
-                        break
-                    out.write(frame)
-                
-                out.release()
-                
-                # Get absolute path
-                abs_segment_path = os.path.abspath(segment_path)
-                segment_paths.append(abs_segment_path)
-                
-                logger.info(f"Created segment {i+1}: {abs_segment_path} (frames {start_frame}-{end_frame})")
+                # Use ffmpeg subprocess to extract segment with audio preservation
+                try:
+                    ffmpeg_cmd = [
+                        'ffmpeg',
+                        '-y',  # Overwrite output files
+                        '-ss', str(start_time),  # Start time
+                        '-t', str(duration),     # Duration
+                        '-i', video_path,        # Input file
+                        '-c:v', 'libx264',       # Video codec
+                        '-c:a', 'aac',           # Audio codec
+                        '-preset', 'fast',       # Encoding speed
+                        '-crf', '23',            # Quality (lower = better)
+                        segment_path             # Output file
+                    ]
+                    
+                    # Run ffmpeg command
+                    result = subprocess.run(
+                        ffmpeg_cmd,
+                        capture_output=True,
+                        text=True,
+                        check=False  # Don't raise exception on non-zero exit
+                    )
+                    
+                    # Check if command succeeded and file exists
+                    if result.returncode == 0 and os.path.exists(segment_path):
+                        # Get absolute path
+                        abs_segment_path = os.path.abspath(segment_path)
+                        segment_paths.append(abs_segment_path)
+                        
+                        logger.info(f"✅ Created segment {i+1}: {abs_segment_path} (duration: {duration:.2f}s)")
+                    else:
+                        logger.error(f"❌ Failed to create segment {i+1}:")
+                        logger.error(f"   Return code: {result.returncode}")
+                        logger.error(f"   Error: {result.stderr}")
+                        continue
+                    
+                except Exception as e:
+                    logger.error(f"❌ Failed to create segment {i+1}: {str(e)}")
+                    # Continue with next segment even if one fails
+                    continue
         
-        finally:
-            cap.release()
+        except Exception as e:
+            logger.error(f"Error in video segmentation: {str(e)}")
+            raise
         
         return segment_paths
 
