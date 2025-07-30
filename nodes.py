@@ -28,6 +28,7 @@ os.makedirs(model_directory, exist_ok=True)
 class DownloadAndLoadTransNetModel:
     """
     A ComfyUI node for downloading and loading TransNetV2 models.
+    Automatically downloads from Hugging Face (MiaoshouAI/transnetv2-pytorch-weights) if not found locally.
     Following the Qwen2.5-VL structure for consistency.
     """
     
@@ -37,7 +38,6 @@ class DownloadAndLoadTransNetModel:
             "required": {
                 "model": (
                     [
-                        "transnetv2-weights",
                         "transnetv2-pytorch-weights",
                     ],
                     {"default": "transnetv2-weights"},
@@ -107,19 +107,57 @@ class DownloadAndLoadTransNetModel:
 
     def _download_model(self, model_name, model_path):
         """
-        Create model directory structure. PyTorch weights should be pre-converted.
+        Download TransNetV2 model from Hugging Face if not found locally.
         """
         try:
             os.makedirs(model_path, exist_ok=True)
             
-            # Create a marker file to indicate model directory is ready
-            marker_file = os.path.join(model_path, "model_ready.txt")
-            with open(marker_file, "w") as f:
-                f.write(f"TransNetV2 model directory {model_name} ready\n")
-                f.write("Note: PyTorch weights should be pre-converted and placed here\n")
-                f.write("Expected file: transnetv2-pytorch-weights.pth\n")
+            # Try to import huggingface_hub for downloading
+            try:
+                from huggingface_hub import hf_hub_download
+                
+                print(f"Downloading TransNetV2 model from Hugging Face...")
+                
+                # Download the PyTorch weights file
+                weights_file = hf_hub_download(
+                    repo_id="MiaoshouAI/transnetv2-pytorch-weights",
+                    filename="transnetv2-pytorch-weights.pth",
+                    local_dir=model_path,
+                    local_dir_use_symlinks=False
+                )
+                
+                logger.info(f"Successfully downloaded TransNetV2 weights to {weights_file}")
+                
+                # Create a marker file to indicate successful download
+                marker_file = os.path.join(model_path, "model_ready.txt")
+                with open(marker_file, "w") as f:
+                    f.write(f"TransNetV2 model {model_name} downloaded successfully\n")
+                    f.write(f"Downloaded from: MiaoshouAI/transnetv2-pytorch-weights\n")
+                    f.write(f"Weights file: transnetv2-pytorch-weights.pth\n")
+                
+            except ImportError:
+                logger.error("huggingface_hub not found. Please install: pip install huggingface_hub")
+                logger.info("Alternatively, manually download transnetv2-pytorch-weights.pth from:")
+                logger.info("https://huggingface.co/MiaoshouAI/transnetv2-pytorch-weights")
+                logger.info(f"And place it in: {model_path}")
+                
+                # Create a marker file with manual download instructions
+                marker_file = os.path.join(model_path, "model_ready.txt")
+                with open(marker_file, "w") as f:
+                    f.write(f"TransNetV2 model directory {model_name} ready\n")
+                    f.write("Manual download required - huggingface_hub not available\n")
+                    f.write("Download transnetv2-pytorch-weights.pth from:\n")
+                    f.write("https://huggingface.co/MiaoshouAI/transnetv2-pytorch-weights\n")
+                    f.write(f"And place it in: {model_path}\n")
+                
+                raise ImportError("huggingface_hub required for automatic download")
             
-            logger.info(f"TransNetV2 model directory created at {model_path}")
+            except Exception as e:
+                logger.error(f"Error downloading from Hugging Face: {str(e)}")
+                logger.info("You can manually download the model from:")
+                logger.info("https://huggingface.co/MiaoshouAI/transnetv2-pytorch-weights")
+                logger.info(f"And place transnetv2-pytorch-weights.pth in: {model_path}")
+                raise
             
         except Exception as e:
             logger.error(f"Error preparing model directory: {str(e)}")
@@ -163,8 +201,8 @@ class TransNetV2_Run:
             },
         }
 
-    RETURN_TYPES = ("LIST",)
-    RETURN_NAMES = ("segment_paths",)
+    RETURN_TYPES = ("LIST", "STRING")
+    RETURN_NAMES = ("segment_paths", "path_string")
     FUNCTION = "TransNetV2_Run"
     CATEGORY = "TransNet"
 
@@ -179,13 +217,13 @@ class TransNetV2_Run:
     ):
         if video is None:
             logger.error("No video input provided")
-            return ([],)
+            return ([], "")
         
         # Handle video input - convert to temporary file if needed
         video_path = self._handle_video_input(video, seed)
         if not video_path:
             logger.error("Failed to process video input")
-            return ([],)
+            return ([], "")
         
         # Set up output directory
         if not output_dir:
@@ -203,12 +241,15 @@ class TransNetV2_Run:
                 min_scene_length
             )
             
+            # Convert segment paths list to string format
+            path_string = "\n".join(segment_paths) if segment_paths else ""
+            
             logger.info(f"Successfully created {len(segment_paths)} video segments")
-            return (segment_paths,)
+            return (segment_paths, path_string)
             
         except Exception as e:
             logger.error(f"Error in TransNetV2 segmentation: {str(e)}")
-            return ([],)
+            return ([], "")
     
     def _handle_video_input(self, video, seed):
         """
