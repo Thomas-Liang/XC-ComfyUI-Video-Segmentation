@@ -52,7 +52,7 @@ class DownloadAndLoadTransNetModel:
     RETURN_TYPES = ("TRANSNET_MODEL",)
     RETURN_NAMES = ("TransNet_model",)
     FUNCTION = "DownloadAndLoadTransNetModel"
-    CATEGORY = "TransNet"
+    CATEGORY = "MiaoshouAI Video Segmentation"
 
     def DownloadAndLoadTransNetModel(self, model, device):
         TransNet_model = {"model": "", "model_path": ""}
@@ -197,14 +197,13 @@ class TransNetV2_Run:
                     "multiline": False,
                     "placeholder": "Leave empty for default temp directory"
                 }),
-                "seed": ("INT", {"default": 1, "min": 1, "max": 0xFFFFFFFFFFFFFFFF}),
             },
         }
 
     RETURN_TYPES = ("LIST", "STRING")
     RETURN_NAMES = ("segment_paths", "path_string")
     FUNCTION = "TransNetV2_Run"
-    CATEGORY = "TransNet"
+    CATEGORY = "MiaoshouAI Video Segmentation"
 
     def TransNetV2_Run(
         self,
@@ -212,7 +211,6 @@ class TransNetV2_Run:
         threshold,
         min_scene_length,
         output_dir,
-        seed,
         video=None,
     ):
         if video is None:
@@ -220,14 +218,17 @@ class TransNetV2_Run:
             return ([], "")
         
         # Handle video input - convert to temporary file if needed
-        video_path = self._handle_video_input(video, seed)
+        video_path = self._handle_video_input(video)
         if not video_path:
             logger.error("Failed to process video input")
             return ([], "")
         
         # Set up output directory
         if not output_dir:
-            output_dir = os.path.join(folder_paths.temp_directory, f"transnet_segments_{seed}")
+            # Generate unique directory name using UUID
+            import uuid
+            unique_id = uuid.uuid4().hex[:8]  # Use first 8 chars for shorter name
+            output_dir = os.path.join(folder_paths.temp_directory, f"transnet_segments_{unique_id}")
         
         os.makedirs(output_dir, exist_ok=True)
         
@@ -251,7 +252,7 @@ class TransNetV2_Run:
             logger.error(f"Error in TransNetV2 segmentation: {str(e)}")
             return ([], "")
     
-    def _handle_video_input(self, video, seed):
+    def _handle_video_input(self, video):
         """
         Handle VIDEO input type and convert to file path.
         Based on Qwen2.5-VL temp_video function.
@@ -260,7 +261,7 @@ class TransNetV2_Run:
             if VideoInput and isinstance(video, VideoInput):
                 unique_id = uuid.uuid4().hex
                 video_path = (
-                    Path(folder_paths.temp_directory) / f"temp_video_{seed}_{unique_id}.mp4"
+                    Path(folder_paths.temp_directory) / f"temp_video_{unique_id}.mp4"
                 )
                 video_path.parent.mkdir(parents=True, exist_ok=True)
                 video.save_to(
@@ -485,14 +486,71 @@ class TransNetV2_Run:
         return segment_paths
 
 
+class SelectVideo:
+    """
+    A ComfyUI node for selecting a specific video segment from TransNetV2 output.
+    Takes a list of segment paths and returns the path at the specified index.
+    """
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "optional": {
+                "segment_paths": ("LIST",),
+            },
+            "required": {
+                "index": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 999,
+                    "step": 1,
+                    "display": "number"
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("selected_path",)
+    FUNCTION = "select_video"
+    CATEGORY = "MiaoshouAI Video Segmentation"
+
+    def select_video(self, index, segment_paths=None):
+        """
+        Select a video segment path by index from the segment paths list.
+        
+        Args:
+            index: The index of the segment to select (0-based)
+            segment_paths: List of segment paths from TransNetV2_Run
+            
+        Returns:
+            The path string at the specified index
+        """
+        if segment_paths is None or len(segment_paths) == 0:
+            logger.warning("No segment paths provided")
+            return ("",)
+        
+        # Validate index
+        if index < 0:
+            logger.warning(f"Index {index} is negative, using 0")
+            index = 0
+        elif index >= len(segment_paths):
+            logger.warning(f"Index {index} is out of range (max: {len(segment_paths)-1}), using last index")
+            index = len(segment_paths) - 1
+        
+        selected_path = segment_paths[index]
+        logger.info(f"Selected segment {index}: {selected_path}")
+        
+        return (selected_path,)
+
+
 # Helper function similar to Qwen2.5-VL
-def temp_video(video: VideoInput, seed):
+def temp_video(video):
     """
     Create temporary video file from VideoInput.
     """
     unique_id = uuid.uuid4().hex
     video_path = (
-        Path(folder_paths.temp_directory) / f"temp_video_{seed}_{unique_id}.mp4"
+        Path(folder_paths.temp_directory) / f"temp_video_{unique_id}.mp4"
     )
     video_path.parent.mkdir(parents=True, exist_ok=True)
     video.save_to(
@@ -507,10 +565,12 @@ def temp_video(video: VideoInput, seed):
 # Node mappings for ComfyUI
 NODE_CLASS_MAPPINGS = {
     "DownloadAndLoadTransNetModel": DownloadAndLoadTransNetModel,
-    "TransNetV2_Run": TransNetV2_Run
+    "TransNetV2_Run": TransNetV2_Run,
+    "SelectVideo": SelectVideo
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "DownloadAndLoadTransNetModel": "Download and Load TransNet Model",
-    "TransNetV2_Run": "TransNetV2 Run"
+    "DownloadAndLoadTransNetModel": "🐾MiaoshouAI Load TransNet Model",
+    "TransNetV2_Run": "🐾MiaoshouAI Segment Video",
+    "SelectVideo": "🐾MiaoshouAI Select Video"
 }

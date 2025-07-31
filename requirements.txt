@@ -7,4 +7,4 @@ ffmpeg-python>=0.2.0
 
 # TransNetV2 Model Weights
 # The model weights need to be downloaded separately from:
-# https://github.com/soCzech/TransNetV2/tree/master/inference/transnetv2-weights
+# https://huggingface.co/MiaoshouAI/transnetv2-pytorch-weights

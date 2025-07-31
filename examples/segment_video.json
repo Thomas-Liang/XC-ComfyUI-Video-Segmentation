@@ -1,59 +1,9 @@
 {
   "id": "cd63db57-98b6-43ff-8520-eaa59e21cde9",
   "revision": 0,
-  "last_node_id": 7,
-  "last_link_id": 5,
+  "last_node_id": 9,
+  "last_link_id": 7,
   "nodes": [
-    {
-      "id": 1,
-      "type": "TransNetV2_Run",
-      "pos": [
-        3151.699462890625,
-        3143.900390625
-      ],
-      "size": [
-        275.314453125,
-        174
-      ],
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "TransNet_model",
-          "type": "TRANSNET_MODEL",
-          "link": 1
-        },
-        {
-          "name": "video",
-          "shape": 7,
-          "type": "VIDEO",
-          "link": 5
-        }
-      ],
-      "outputs": [
-        {
-          "name": "segment_paths",
-          "type": "LIST",
-          "links": [
-            4
-          ]
-        }
-      ],
-      "properties": {
-        "aux_id": "miaoshouai/ComfyUI-Video-Segmentation",
-        "ver": "89db43013f0cc9b8a3ce2f0b6fd04c2a84690e1a",
-        "Node name for S&R": "TransNetV2_Run",
-        "widget_ue_connectable": {}
-      },
-      "widgets_values": [
-        0.5,
-        30,
-        "C:\\Users\\Admin\\Downloads\\segment",
-        1038349077222303,
-        "randomize"
-      ]
-    },
     {
       "id": 2,
       "type": "DownloadAndLoadTransNetModel",
@@ -191,6 +141,137 @@
         "Twilight - Made with Clipchamp.mp4",
         "image"
       ]
+    },
+    {
+      "id": 8,
+      "type": "SelectVideo",
+      "pos": [
+        3552.229736328125,
+        3077.098388671875
+      ],
+      "size": [
+        275.2964782714844,
+        58
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "segment_paths",
+          "shape": 7,
+          "type": "LIST",
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "name": "selected_path",
+          "type": "STRING",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "miaoshouai/ComfyUI-Video-Segmentation",
+        "ver": "0cd41c8736b3a7bacf6403a753171c2d3f93714c",
+        "widget_ue_connectable": {},
+        "Node name for S&R": "SelectVideo"
+      },
+      "widgets_values": [
+        0
+      ]
+    },
+    {
+      "id": 9,
+      "type": "ShowText|pysssss",
+      "pos": [
+        3923.0283203125,
+        3085.747314453125
+      ],
+      "size": [
+        140,
+        26
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "1.2.5",
+        "widget_ue_connectable": {},
+        "Node name for S&R": "ShowText|pysssss"
+      }
+    },
+    {
+      "id": 1,
+      "type": "TransNetV2_Run",
+      "pos": [
+        3151.699462890625,
+        3143.900390625
+      ],
+      "size": [
+        275.314453125,
+        174
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "TransNet_model",
+          "type": "TRANSNET_MODEL",
+          "link": 1
+        },
+        {
+          "name": "video",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "segment_paths",
+          "type": "LIST",
+          "links": [
+            4,
+            6
+          ]
+        },
+        {
+          "name": "path_string",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "miaoshouai/ComfyUI-Video-Segmentation",
+        "ver": "89db43013f0cc9b8a3ce2f0b6fd04c2a84690e1a",
+        "Node name for S&R": "TransNetV2_Run",
+        "widget_ue_connectable": {}
+      },
+      "widgets_values": [
+        0.5,
+        30,
+        "ComfyUI\\output"
+      ]
     }
   ],
   "links": [
@@ -217,6 +298,22 @@
       1,
       1,
       "VIDEO"
+    ],
+    [
+      6,
+      1,
+      0,
+      8,
+      0,
+      "LIST"
+    ],
+    [
+      7,
+      8,
+      0,
+      9,
+      0,
+      "STRING"
     ]
   ],
   "groups": [],
@@ -225,10 +322,10 @@
     "ue_links": [],
     "links_added_by_ue": [],
     "ds": {
-      "scale": 0.6727499949325761,
+      "scale": 0.7400249944258338,
       "offset": [
-        -2347.2164588083915,
-        -2899.9963245682598
+        -2502.535416619878,
+        -2972.5073608876223
       ]
     },
     "frontendVersion": "1.23.4",
