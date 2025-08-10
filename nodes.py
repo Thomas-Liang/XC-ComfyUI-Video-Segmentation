@@ -396,27 +396,45 @@ class TransNetV2_Run:
     def _find_scenes(self, predictions, threshold, min_scene_length):
         """
         Find scene boundaries from TransNetV2 predictions.
+        Uses the same algorithm as the reference project's predictions_to_scenes function.
         """
-        # Find frames where transition probability exceeds threshold
-        transitions = np.where(predictions > threshold)[0]
+        # Convert predictions to binary (same as reference project)
+        predictions_binary = (predictions > threshold).astype(np.uint8)
         
-        if len(transitions) == 0:
-            return [(0, len(predictions))]
-        
-        # Group transitions and ensure minimum scene length
         scenes = []
-        start_frame = 0
+        t, t_prev, start = -1, 0, 0
         
-        for transition in transitions:
-            if transition - start_frame >= min_scene_length:
-                scenes.append((start_frame, transition))
-                start_frame = transition
+        for i, t in enumerate(predictions_binary):
+            if t_prev == 1 and t == 0:  # Transition from scene boundary to normal frame - start of new scene
+                start = i
+            if t_prev == 0 and t == 1 and i != 0:  # Transition from normal frame to scene boundary - end of scene
+                scenes.append([start, i])
+            t_prev = t
+            
+        # Handle the last scene
+        if t == 0:  # If last prediction is not a scene boundary
+            scenes.append([start, len(predictions_binary)])
         
-        # Add final scene
-        if start_frame < len(predictions):
-            scenes.append((start_frame, len(predictions)))
+        # Handle case where all predictions are scene boundaries
+        if len(scenes) == 0:
+            return [(0, len(predictions_binary))]
         
-        return scenes
+        # Apply minimum scene length filtering
+        filtered_scenes = []
+        for start, end in scenes:
+            if end - start >= min_scene_length:
+                filtered_scenes.append((start, end))
+            else:
+                # If scene is too short, merge with previous scene or extend
+                if filtered_scenes:
+                    # Extend the previous scene to include this short one
+                    prev_start, prev_end = filtered_scenes[-1]
+                    filtered_scenes[-1] = (prev_start, end)
+                else:
+                    # If it's the first scene and too short, keep it anyway
+                    filtered_scenes.append((start, end))
+        
+        return filtered_scenes if filtered_scenes else [(0, len(predictions_binary))]
 
     def _create_video_segments(self, video_path, scenes, output_dir, fps):
         """
@@ -432,11 +450,12 @@ class TransNetV2_Run:
                 segment_filename = f"segment_{i+1:03d}.mp4"
                 segment_path = os.path.join(output_dir, segment_filename)
                 
-                # Calculate time-based start and duration
+                # Calculate time-based start and end times
+                # Note: end_time is exclusive in both moviepy and ffmpeg -to parameter
                 start_time = start_frame / fps
-                duration = (end_frame - start_frame) / fps
+                end_time = end_frame / fps  # ffmpeg -to parameter is exclusive, matching moviepy's subclip behavior
                 
-                logger.info(f"Creating segment {i+1}: frames {start_frame}-{end_frame}, time {start_time:.2f}s-{start_time+duration:.2f}s")
+                logger.info(f"Creating segment {i+1}: frames {start_frame}-{end_frame-1} (inclusive), time {start_time:.2f}s-{end_time:.2f}s")
                 
                 # Use ffmpeg subprocess to extract segment with audio preservation
                 try:
@@ -444,7 +463,7 @@ class TransNetV2_Run:
                         'ffmpeg',
                         '-y',  # Overwrite output files
                         '-ss', str(start_time),  # Start time
-                        '-t', str(duration),     # Duration
+                        '-to', str(end_time),    # End time (exclusive)
                         '-i', video_path,        # Input file
                         '-c:v', 'libx264',       # Video codec
                         '-c:a', 'aac',           # Audio codec
@@ -467,7 +486,7 @@ class TransNetV2_Run:
                         abs_segment_path = os.path.abspath(segment_path)
                         segment_paths.append(abs_segment_path)
                         
-                        logger.info(f"✅ Created segment {i+1}: {abs_segment_path} (duration: {duration:.2f}s)")
+                        logger.info(f"✅ Created segment {i+1}: {abs_segment_path} (duration: {end_time - start_time:.2f}s)")
                     else:
                         logger.error(f"❌ Failed to create segment {i+1}:")
                         logger.error(f"   Return code: {result.returncode}")
@@ -543,6 +562,126 @@ class SelectVideo:
         return (selected_path,)
 
 
+class ZipCompress:
+    """
+    A ComfyUI node for compressing video segments into a zip file.
+    Takes a list of segment paths and creates a compressed zip archive.
+    """
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "optional": {
+                "images_or_video_path": ("STRING",),
+            },
+            "required": {
+                "filename_prefix": ("STRING", {
+                    "default": "ComfyUI",
+                    "multiline": False,
+                }),
+                "image_format": (
+                    ["PNG", "JPG", "WEBP", "MP4", "AVI", "MOV"],
+                    {"default": "PNG"},
+                ),
+                "password": ("STRING", {
+                    "default": "",
+                    "multiline": False,
+                    "placeholder": "Optional password for zip file"
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("zip_filename",)
+    FUNCTION = "compress_files"
+    CATEGORY = "MiaoshouAI Video Segmentation"
+
+    def compress_files(self, filename_prefix, image_format, password, images_or_video_path=None):
+        """
+        Compress video segments into a zip file.
+        
+        Args:
+            filename_prefix: Prefix for the zip filename
+            image_format: Format parameter (kept for interface compatibility)
+            password: Optional password for the zip file
+            images_or_video_path: String of file paths (newline-separated) to compress
+            
+        Returns:
+            The path to the created zip file
+        """
+        import zipfile
+        import datetime
+        
+        # Handle input - convert string to list if needed
+        if images_or_video_path is None or images_or_video_path.strip() == "":
+            logger.warning("No file paths provided for compression")
+            return ("",)
+        
+        # Convert path string to list (TransNetV2_Run outputs newline-separated paths)
+        if isinstance(images_or_video_path, str):
+            file_paths = [path.strip() for path in images_or_video_path.split('\n') if path.strip()]
+        else:
+            file_paths = images_or_video_path
+        
+        if not file_paths:
+            logger.warning("No valid file paths found")
+            return ("",)
+        
+        # Create output directory if not exists
+        # Use the directory of the first file as base for output
+        first_file_dir = os.path.dirname(file_paths[0])
+        
+        # Generate zip filename with timestamp
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        zip_filename = f"{filename_prefix}_{timestamp}.zip"
+        zip_path = os.path.join(first_file_dir, zip_filename)
+        
+        try:
+            # Create zip file
+            compression = zipfile.ZIP_DEFLATED
+            compresslevel = 6  # Good balance between speed and compression
+            
+            with zipfile.ZipFile(zip_path, 'w', compression=compression, compresslevel=compresslevel) as zipf:
+                # Set password if provided
+                if password:
+                    zipf.setpassword(password.encode('utf-8'))
+                
+                # Add each file to the zip
+                for i, file_path in enumerate(file_paths):
+                    if os.path.exists(file_path):
+                        # Get just the filename for the archive
+                        filename = os.path.basename(file_path)
+                        
+                        # Add file to zip
+                        if password:
+                            # For password-protected files, we need to use a different approach
+                            zipf.write(file_path, filename)
+                        else:
+                            zipf.write(file_path, filename)
+                        
+                        logger.info(f"Added file {i+1}: {filename}")
+                    else:
+                        logger.warning(f"File not found, skipping: {file_path}")
+            
+            # Verify zip file was created
+            if os.path.exists(zip_path):
+                file_size = os.path.getsize(zip_path)
+                logger.info(f"✅ Successfully created zip file: {zip_path}")
+                logger.info(f"   File size: {file_size / (1024*1024):.2f} MB")
+                logger.info(f"   Contains {len(file_paths)} files")
+                if password:
+                    logger.info("   Password protected: Yes")
+                
+                return (os.path.abspath(zip_path),)
+            else:
+                logger.error("Failed to create zip file")
+                return ("",)
+                
+        except Exception as e:
+            logger.error(f"Error creating zip file: {str(e)}")
+            return ("",)
+
+
 # Helper function similar to Qwen2.5-VL
 def temp_video(video):
     """
@@ -566,11 +705,13 @@ def temp_video(video):
 NODE_CLASS_MAPPINGS = {
     "DownloadAndLoadTransNetModel": DownloadAndLoadTransNetModel,
     "TransNetV2_Run": TransNetV2_Run,
-    "SelectVideo": SelectVideo
+    "SelectVideo": SelectVideo,
+    "ZipCompress": ZipCompress
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "DownloadAndLoadTransNetModel": "🐾MiaoshouAI Load TransNet Model",
     "TransNetV2_Run": "🐾MiaoshouAI Segment Video",
-    "SelectVideo": "🐾MiaoshouAI Select Video"
+    "SelectVideo": "🐾MiaoshouAI Select Video",
+    "ZipCompress": "🐾MiaoshouAI Zip Compress"
 }
