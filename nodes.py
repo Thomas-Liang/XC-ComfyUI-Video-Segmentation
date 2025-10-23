@@ -386,7 +386,10 @@ class TransNetV2_Run:
             segment_paths = self._create_video_segments(
                 video_path, scenes, output_dir, fps
             )
-            
+            # 删除第一个元素（如果列表非空）XUANCHEN 修改
+            if segment_paths:  # 避免空列表切片报错
+                segment_paths = segment_paths[1:]
+                
             return segment_paths
             
         except Exception as e:
@@ -560,6 +563,64 @@ class SelectVideo:
         logger.info(f"Selected segment {index}: {selected_path}")
         
         return (selected_path,)
+
+#XuanChen 修改
+class DeleteVideoSegment:
+    """
+    A ComfyUI node for deleting a specific video segment from a list of segments.
+    Takes a list of segment paths and removes the element at the specified index,
+    returning the updated list.
+    """
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "segment_paths": ("LIST",),
+                "index_to_delete": ("INT", {
+                    "default": 0,
+                    "min": 0,
+                    "max": 999,
+                    "step": 1,
+                    "display": "number"
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("LIST",)
+    RETURN_NAMES = ("updated_segment_paths",)
+    FUNCTION = "delete_segment"
+    CATEGORY = "MiaoshouAI Video Segmentation"
+
+    def delete_segment(self, segment_paths, index_to_delete):
+        """
+        Delete a video segment path by index from the segment paths list.
+        
+        Args:
+            segment_paths: List of segment paths to process
+            index_to_delete: The index of the segment to delete (0-based)
+            
+        Returns:
+            Updated list of segment paths after deletion
+        """
+        # Validate input list
+        if not segment_paths:
+            logger.warning("Empty segment paths list provided, returning empty list")
+            return ([],)
+        
+        # Validate index range
+        if index_to_delete < 0:
+            logger.warning(f"Delete index {index_to_delete} is negative, no segment deleted")
+            return (segment_paths.copy(),)
+        if index_to_delete >= len(segment_paths):
+            logger.warning(f"Delete index {index_to_delete} is out of range (max: {len(segment_paths)-1}), no segment deleted")
+            return (segment_paths.copy(),)
+        
+        # Create a new list excluding the target index (avoid modifying original list)
+        updated_paths = [path for i, path in enumerate(segment_paths) if i != index_to_delete]
+        logger.info(f"Deleted segment at index {index_to_delete}, new list length: {len(updated_paths)}")
+        
+        return (updated_paths,)
 
 
 class ZipCompress:
