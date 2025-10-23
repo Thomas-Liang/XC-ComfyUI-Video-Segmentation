@@ -761,18 +761,99 @@ def temp_video(video):
 
     return str(video_path)
 
+class VideoConcatenator:
+    """
+    视频片段拼接节点：将多个视频片段按顺序拼接为单个视频（基于ffmpeg，无循环）
+    """
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "segment_paths": ("LIST",),  # 从DeleteVideoSegment节点获取的剩余片段路径列表
+                "output_filename": ("STRING", {
+                    "default": "concatenated_video.mp4",
+                    "placeholder": "拼接后的视频文件名（含扩展名）"
+                }),
+                "output_dir": ("STRING", {
+                    "default": "",
+                    "placeholder": "为空则使用第一个片段的目录"
+                }),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("output_video_path",)
+    FUNCTION = "concatenate_videos"
+    CATEGORY = "MiaoshouAI Video Segmentation"
+
+    def concatenate_videos(self, segment_paths, output_filename, output_dir):
+        import tempfile
+        import subprocess
+
+        # 校验输入片段
+        if not segment_paths or len(segment_paths) < 1:
+            logger.error("无有效视频片段可拼接")
+            return ("",)
+
+        # 确定输出目录
+        if not output_dir:
+            output_dir = os.path.dirname(segment_paths[0])
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, output_filename)
+
+        try:
+            # 生成临时文件列表（ffmpeg拼接需要的格式）
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+                for path in segment_paths:
+                    # 路径需用引号包裹（避免含空格的路径出错）
+                    f.write(f"file '{os.path.abspath(path)}'\n")
+                temp_list_path = f.name
+
+            # 用ffmpeg单命令拼接所有视频（无循环，底层高效处理）
+            ffmpeg_cmd = [
+                'ffmpeg',
+                '-y',  # 覆盖现有文件
+                '-f', 'concat',  # 使用concat协议
+                '-safe', '0',  # 允许绝对路径
+                '-i', temp_list_path,  # 输入片段列表
+                '-c', 'copy',  # 直接复制流（不重新编码，速度最快）
+                output_path
+            ]
+
+            # 执行命令
+            result = subprocess.run(
+                ffmpeg_cmd,
+                capture_output=True,
+                text=True
+            )
+
+            # 检查结果
+            if result.returncode == 0 and os.path.exists(output_path):
+                logger.info(f"视频拼接完成：{output_path}（{len(segment_paths)}个片段）")
+                return (output_path,)
+            else:
+                logger.error(f"拼接失败：{result.stderr}")
+                return ("",)
+
+        finally:
+            # 清理临时文件
+            if 'temp_list_path' in locals() and os.path.exists(temp_list_path):
+                os.remove(temp_list_path)
+
 
 # Node mappings for ComfyUI
 NODE_CLASS_MAPPINGS = {
     "DownloadAndLoadTransNetModel": DownloadAndLoadTransNetModel,
     "TransNetV2_Run": TransNetV2_Run,
     "SelectVideo": SelectVideo,
-    "ZipCompress": ZipCompress
+    "ZipCompress": ZipCompress,
+     "VideoConcatenator": VideoConcatenator  # 新增节点
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "DownloadAndLoadTransNetModel": "🐾MiaoshouAI Load TransNet Model",
     "TransNetV2_Run": "🐾MiaoshouAI Segment Video",
     "SelectVideo": "🐾MiaoshouAI Select Video",
-    "ZipCompress": "🐾MiaoshouAI Zip Compress"
+    "ZipCompress": "🐾MiaoshouAI Zip Compress",
+    "VideoConcatenator": "🐾MiaoshouAI Concatenate Videos"  # 新增节点显示名
 }
