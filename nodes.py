@@ -52,7 +52,7 @@ class DownloadAndLoadTransNetModel:
     RETURN_TYPES = ("TRANSNET_MODEL",)
     RETURN_NAMES = ("TransNet_model",)
     FUNCTION = "DownloadAndLoadTransNetModel"
-    CATEGORY = "MiaoshouAI Video Segmentation"
+    CATEGORY = "XuanChen Video Segmentation"
 
     def DownloadAndLoadTransNetModel(self, model, device):
         TransNet_model = {"model": "", "model_path": ""}
@@ -203,7 +203,7 @@ class TransNetV2_Run:
     RETURN_TYPES = ("LIST", "STRING")
     RETURN_NAMES = ("segment_paths", "path_string")
     FUNCTION = "TransNetV2_Run"
-    CATEGORY = "MiaoshouAI Video Segmentation"
+    CATEGORY = "XuanChen Video Segmentation"
 
     def TransNetV2_Run(
         self,
@@ -534,7 +534,7 @@ class SelectVideo:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("selected_path",)
     FUNCTION = "select_video"
-    CATEGORY = "MiaoshouAI Video Segmentation"
+    CATEGORY = "XuanChen Video Segmentation"
 
     def select_video(self, index, segment_paths=None):
         """
@@ -590,7 +590,7 @@ class DeleteVideoSegment:
     RETURN_TYPES = ("LIST",)
     RETURN_NAMES = ("updated_segment_paths",)
     FUNCTION = "delete_segment"
-    CATEGORY = "MiaoshouAI Video Segmentation"
+    CATEGORY = "XuanChen Video Segmentation"
 
     def delete_segment(self, segment_paths, index_to_delete):
         """
@@ -655,7 +655,7 @@ class ZipCompress:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("zip_filename",)
     FUNCTION = "compress_files"
-    CATEGORY = "MiaoshouAI Video Segmentation"
+    CATEGORY = "XuanChen Video Segmentation"
 
     def compress_files(self, filename_prefix, image_format, password, images_or_video_path=None):
         """
@@ -784,7 +784,7 @@ class VideoConcatenator:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("output_video_path",)
     FUNCTION = "concatenate_videos"
-    CATEGORY = "MiaoshouAI Video Segmentation"
+    CATEGORY = "XuanChen Video Segmentation"
 
     def concatenate_videos(self, segment_paths, output_filename, output_dir):
         import tempfile
@@ -845,7 +845,7 @@ class VideoConcatenator:
 NODE_CLASS_MAPPINGS = {
     "DownloadAndLoadTransNetModel": XuanChen DownloadAndLoadTransNetModel,
     "TransNetV2_Run": XuanChen TransNetV2_Run,
-    "DeleteVideoSegment": XuanChen DeleteVideoSegment,
+    "DeleteVideoSegment": XuanChen Delete Video Segment,
     "SelectVideo": XuanChen SelectVideo,
     "ZipCompress": XuanChen ZipCompress,
      "VideoConcatenator": XuanChen VideoConcatenator  # 新增节点
@@ -854,7 +854,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "DownloadAndLoadTransNetModel": "XuanChen Load TransNet Model",
     "TransNetV2_Run": "XuanChen Segment Video",
-    "DeleteVideoSegment": "XuanChen DeleteVideoSegment",
+    "DeleteVideoSegment": "XuanChen Delete Video Segment",
     "SelectVideo": "XuanChen Select Video",
     "ZipCompress": "XuanChen Zip Compress",
     "VideoConcatenator": "XuanChen Concatenate Videos"  # 新增节点显示名
