@@ -845,6 +845,7 @@ class VideoConcatenator:
 NODE_CLASS_MAPPINGS = {
     "DownloadAndLoadTransNetModel": DownloadAndLoadTransNetModel,
     "TransNetV2_Run": TransNetV2_Run,
+    "DeleteVideoSegment": DeleteVideoSegment,
     "SelectVideo": SelectVideo,
     "ZipCompress": ZipCompress,
      "VideoConcatenator": VideoConcatenator  # 新增节点
@@ -853,7 +854,8 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "DownloadAndLoadTransNetModel": "🐾MiaoshouAI Load TransNet Model",
     "TransNetV2_Run": "🐾MiaoshouAI Segment Video",
+    "DeleteVideoSegment": "XuanChen DeleteVideoSegment",
     "SelectVideo": "🐾MiaoshouAI Select Video",
     "ZipCompress": "🐾MiaoshouAI Zip Compress",
-    "VideoConcatenator": "🐾MiaoshouAI Concatenate Videos"  # 新增节点显示名
+    "VideoConcatenator": "🐾XuanChen Concatenate Videos"  # 新增节点显示名
 }
