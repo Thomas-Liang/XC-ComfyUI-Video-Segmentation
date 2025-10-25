@@ -54,7 +54,7 @@ class DownloadAndLoadTransNetModelXC:
     FUNCTION = "DownloadAndLoadTransNetModelXC"
     CATEGORY = "XuanChen Video Segmentation"
 
-    def DownloadAndLoadTransNetModel(self, model, device):
+    def DownloadAndLoadTransNetModelXC(self, model, device):
         TransNet_model = {"model": "", "model_path": ""}
         model_name = model
         model_path = os.path.join(model_directory, model_name)
@@ -205,7 +205,7 @@ class TransNetV2_RunXC:
     FUNCTION = "TransNetV2_RunXC"
     CATEGORY = "XuanChen Video Segmentation"
 
-    def TransNetV2_Run(
+    def TransNetV2_RunXC(
         self,
         TransNet_model,
         threshold,
@@ -536,7 +536,7 @@ class SelectVideoXC:
     FUNCTION = "SelectVideoXC"
     CATEGORY = "XuanChen Video Segmentation"
 
-    def select_video(self, index, segment_paths=None):
+    def select_videoXC(self, index, segment_paths=None):
         """
         Select a video segment path by index from the segment paths list.
         
@@ -592,7 +592,7 @@ class DeleteVideoSegmentXC:
     FUNCTION = "DeleteVideoSegmentXC"
     CATEGORY = "XuanChen Video Segmentation"
 
-    def delete_segment(self, segment_paths, index_to_delete):
+    def DeleteVideoSegmentXC(self, segment_paths, index_to_delete):
         """
         Delete a video segment path by index from the segment paths list.
         
@@ -657,7 +657,7 @@ class ZipCompressXC:
     FUNCTION = "compress_filesXC"
     CATEGORY = "XuanChen Video Segmentation"
 
-    def compress_files(self, filename_prefix, image_format, password, images_or_video_path=None):
+    def compress_filesxc(self, filename_prefix, image_format, password, images_or_video_path=None):
         """
         Compress video segments into a zip file.
         
@@ -783,10 +783,10 @@ class VideoConcatenatorXC:
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("output_video_path",)
-    FUNCTION = "concatenate_videos"
+    FUNCTION = "concatenate_videosXC"
     CATEGORY = "XuanChen Video Segmentation"
 
-    def concatenate_videos(self, segment_paths, output_filename, output_dir):
+    def concatenate_videosXC(self, segment_paths, output_filename, output_dir):
         import tempfile
         import subprocess
 
