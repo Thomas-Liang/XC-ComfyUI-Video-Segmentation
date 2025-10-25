@@ -25,7 +25,7 @@ model_directory = os.path.join(folder_paths.models_dir, "VLM")
 os.makedirs(model_directory, exist_ok=True)
 
 
-class DownloadAndLoadTransNetModel:
+class DownloadAndLoadTransNetModelXC:
     """
     A ComfyUI node for downloading and loading TransNetV2 models.
     Automatically downloads from Hugging Face (MiaoshouAI/transnetv2-pytorch-weights) if not found locally.
@@ -51,7 +51,7 @@ class DownloadAndLoadTransNetModel:
 
     RETURN_TYPES = ("TRANSNET_MODEL",)
     RETURN_NAMES = ("TransNet_model",)
-    FUNCTION = "DownloadAndLoadTransNetModel"
+    FUNCTION = "DownloadAndLoadTransNetModelXC"
     CATEGORY = "XuanChen Video Segmentation"
 
     def DownloadAndLoadTransNetModel(self, model, device):
@@ -164,7 +164,7 @@ class DownloadAndLoadTransNetModel:
             raise
 
 
-class TransNetV2_Run:
+class TransNetV2_RunXC:
     """
     A ComfyUI node for video scene segmentation using TransNetV2.
     Following the Qwen2.5-VL structure with optional video input.
@@ -202,7 +202,7 @@ class TransNetV2_Run:
 
     RETURN_TYPES = ("LIST", "STRING")
     RETURN_NAMES = ("segment_paths", "path_string")
-    FUNCTION = "TransNetV2_Run"
+    FUNCTION = "TransNetV2_RunXC"
     CATEGORY = "XuanChen Video Segmentation"
 
     def TransNetV2_Run(
@@ -508,7 +508,7 @@ class TransNetV2_Run:
         return segment_paths
 
 
-class SelectVideo:
+class SelectVideoXC:
     """
     A ComfyUI node for selecting a specific video segment from TransNetV2 output.
     Takes a list of segment paths and returns the path at the specified index.
@@ -533,7 +533,7 @@ class SelectVideo:
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("selected_path",)
-    FUNCTION = "select_video"
+    FUNCTION = "SelectVideoXC"
     CATEGORY = "XuanChen Video Segmentation"
 
     def select_video(self, index, segment_paths=None):
@@ -563,9 +563,9 @@ class SelectVideo:
         logger.info(f"Selected segment {index}: {selected_path}")
         
         return (selected_path,)
-
+        
 #XuanChen 修改
-class DeleteVideoSegment:
+class DeleteVideoSegmentXC:
     """
     A ComfyUI node for deleting a specific video segment from a list of segments.
     Takes a list of segment paths and removes the element at the specified index,
@@ -589,7 +589,7 @@ class DeleteVideoSegment:
 
     RETURN_TYPES = ("LIST",)
     RETURN_NAMES = ("updated_segment_paths",)
-    FUNCTION = "delete_segment"
+    FUNCTION = "DeleteVideoSegmentXC"
     CATEGORY = "XuanChen Video Segmentation"
 
     def delete_segment(self, segment_paths, index_to_delete):
@@ -623,7 +623,7 @@ class DeleteVideoSegment:
         return (updated_paths,)
 
 
-class ZipCompress:
+class ZipCompressXC:
     """
     A ComfyUI node for compressing video segments into a zip file.
     Takes a list of segment paths and creates a compressed zip archive.
@@ -654,7 +654,7 @@ class ZipCompress:
 
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("zip_filename",)
-    FUNCTION = "compress_files"
+    FUNCTION = "compress_filesXC"
     CATEGORY = "XuanChen Video Segmentation"
 
     def compress_files(self, filename_prefix, image_format, password, images_or_video_path=None):
@@ -761,7 +761,7 @@ def temp_video(video):
 
     return str(video_path)
 
-class VideoConcatenator:
+class VideoConcatenatorXC:
     """
     视频片段拼接节点：将多个视频片段按顺序拼接为单个视频（基于ffmpeg，无循环）
     """
@@ -843,19 +843,19 @@ class VideoConcatenator:
 
 # Node mappings for ComfyUI
 NODE_CLASS_MAPPINGS = {
-    "DownloadAndLoadTransNetModel": DownloadAndLoadTransNetModel,
-    "TransNetV2_Run": TransNetV2_Run,
-    "DeleteVideoSegment": DeleteVideoSegment,
-    "SelectVideo": SelectVideo,
-    "ZipCompress": ZipCompress,
-     "VideoConcatenator": VideoConcatenator  # 新增节点
+    "DownloadAndLoadTransNetModelXC": DownloadAndLoadTransNetModelXC,
+    "TransNetV2_RunXC": TransNetV2_RunXC,
+    "DeleteVideoSegmentXC": DeleteVideoSegmentXC,
+    "SelectVideoXC": SelectVideoXC,
+    "ZipCompressXC": ZipCompressXC,
+    "VideoConcatenatorXC": VideoConcatenatorXC  # 新增节点
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "DownloadAndLoadTransNetModel": "XuanChen Load TransNet Model",
-    "TransNetV2_Run": "XuanChen Segment Video",
-    "DeleteVideoSegment": "XuanChen Delete Video Segment",
-    "SelectVideo": "XuanChen Select Video",
-    "ZipCompress": "XuanChen Zip Compress",
-    "VideoConcatenator": "XuanChen Concatenate Videos"  # 新增节点显示名
+    "DownloadAndLoadTransNetModelXC": "XuanChen Load TransNet Model",
+    "TransNetV2_RunXC": "XuanChen Segment Video",
+    "DeleteVideoSegmentXC": "XuanChen Delete Video Segment",
+    "SelectVideoXC": "XuanChen Select Video",
+    "ZipCompressXC": "XuanChen Zip Compress",
+    "VideoConcatenatorXC": "XuanChen Concatenate Videos"  # 新增节点显示名
 }
