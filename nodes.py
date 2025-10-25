@@ -843,12 +843,12 @@ class VideoConcatenator:
 
 # Node mappings for ComfyUI
 NODE_CLASS_MAPPINGS = {
-    "DownloadAndLoadTransNetModel": XuanChen DownloadAndLoadTransNetModel,
-    "TransNetV2_Run": XuanChen TransNetV2_Run,
-    "DeleteVideoSegment": XuanChen Delete Video Segment,
-    "SelectVideo": XuanChen SelectVideo,
-    "ZipCompress": XuanChen ZipCompress,
-     "VideoConcatenator": XuanChen VideoConcatenator  # 新增节点
+    "DownloadAndLoadTransNetModel": DownloadAndLoadTransNetModel,
+    "TransNetV2_Run": TransNetV2_Run,
+    "DeleteVideoSegment": DeleteVideoSegment,
+    "SelectVideo": SelectVideo,
+    "ZipCompress": ZipCompress,
+     "VideoConcatenator": VideoConcatenator  # 新增节点
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
